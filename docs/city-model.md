@@ -58,9 +58,20 @@ Ein Plot ist ein Grundstück innerhalb eines Blocks. Plots sind abgeleitet, aber
 
 MapObjects sind konkrete sichtbare Objekte wie Gebäude, Brunnen, Bäume, Marktstände und Dekoration. Sie besitzen konzeptionell stabile ID, `assetId`, Position, Rotation, optionale `plotId`/`districtId`, Label, Tags und Provenance. MapObject und Asset bleiben getrennt.
 
-## AssetLibrary, Labels und Tags
+## AssetLibrary, visuelle Ressourcen, Labels und Tags
 
-Die AssetLibrary liegt außerhalb des CityProject. CityProject referenziert Assets über stabile `assetId`. Assets können später Texture, physische Größe in Metern, Footprint-/Collision-Geometrie, Entrance-Position/-Orientierung und semantische Metadaten enthalten. PNG-Pixelgröße ist nicht die physische Gebäudegröße; ein 512x768-Asset kann etwa 8x12 Meter darstellen. Custom Assets und portable Projektpakete sind offen.
+Fachliche Geometrie und visuelle Darstellung sind getrennt. Das CityProject beschreibt fachliche Geometrie und referenziert visuelle Ressourcen ausschließlich über stabile semantische IDs. Domain-Objekte enthalten keine direkten PNG-, SVG-, WebP- oder sonstigen Dateipfade.
+
+Die Asset-/Style-Library liegt außerhalb des CityProject. Das CityProject enthält stabile Referenzen; Dateiformat und Rendererimplementierung bleiben davon getrennt. Für visuelle Ressourcen werden konzeptionell mehrere Kategorien unterschieden:
+
+- **Object Assets:** einzelne platzierbare Objekte wie Gebäude, Bäume, Brunnen und Marktstände. Sie können neben ihrer Grafik später fachlich relevante Angaben wie physische Größe, Footprint, Collision-Geometrie sowie Entrance-/Anchor-Informationen besitzen.
+- **Surface Styles:** Darstellung von Flächen wie Pflaster, Erde, Wasser oder Waldboden.
+- **Edge/Path Styles:** Darstellung entlang von Konturen oder Pfaden, etwa Straßenrandsteine, Flussufer oder Mauern.
+- **Composite Styles:** Kombination mehrerer Darstellungsbestandteile, zum Beispiel eine Straße aus Surface, Edge und Details.
+
+Diese Kategorien sind zunächst konzeptionell. Daraus wird noch keine allgemeine TypeScript-Style-Hierarchie abgeleitet.
+
+Die Pixelgröße einer Grafik ist nicht die physische Objektgröße; ein 512x768-Pixel-Asset kann etwa 8x12 Meter darstellen. Custom Assets und portable Projektpakete sind offen.
 
 Labels sind sichtbare Namen, Tags semantische Suchinformationen wie `bakery`, `shop` und `food`. Districtzugehörigkeit ist strukturelle Information, kein Tag.
 
@@ -82,6 +93,14 @@ Lokale Zufallsgenerierung leitet aus City Seed, District-ID, Generatorstufe und 
 
 Persistierte Domain-Layer sind nicht Render-Layer. PixiJS entscheidet unabhängig über Draw Order, Container und Batching; mögliche Render-Layer sind ground, terrain background, roads, terrain details, buildings, vegetation, district overlay, selection overlay, labels und editor UI. Diese Struktur gehört nicht ins Domain Model.
 
+Die Geometrie bestimmt die Form; der Style bestimmt das Aussehen. Dadurch bleiben beliebige Winkel, Straßenbreiten, Kurven und organische Verläufe möglich. Materialien können später wiederholbare Texturen mit definierter physischer Größe in World Units verwenden, statt ein einzelnes Bild über lange Strecken extrem zu dehnen.
+
+Straßen werden langfristig nicht aus fertigen Straßenbildern oder einem starren Tileset zusammengesetzt. Grundlage bleiben RoadNetwork, Road-Geometrie und Road-Breite. Der Renderer kann daraus eine zusammenhängende Straßenfläche ableiten. Treffen Straßen aufeinander, werden ihre Flächen als zusammenhängende Geometrie behandelt. Randdarstellungen wie Randsteine werden nur entlang tatsächlich sichtbarer Außenkanten gerendert und laufen nicht durch Kreuzungen oder Einmündungen hindurch.
+
+Abgeleitete Surface-, Junction- und Edge-Geometrie ist Runtime-/Renderdata und wird nicht redundant im CityProject gespeichert. Unterschiedliche Styles sollen später aufeinandertreffen können, beispielsweise Kopfsteinpflasterstraße und Erdweg. Das konkrete Verfahren für organische Übergänge ist ausdrücklich offen; es wird jetzt keine Entscheidung über Shader, Alpha-Masken, Blend-Texturen oder andere Techniken getroffen.
+
+Dieselben Renderingkonzepte können später auch bei Flüssen, Wäldern, Mauern und weiteren Strukturen nützlich sein. Daraus wird jetzt keine universelle Renderingabstraktion gebaut.
+
 PixiJS rendert, generiert aber keine Stadt. Domain- und Geometrielogik bleibt frameworkunabhängig. Pan/Zoom regenerieren nichts. Lokale Invalidierung, vereinfachte Drag-Vorschau, Berechnung bei `pointerup`, Asset-/Texture-Reuse sowie später Culling, Batching, Spatial Indexing und LOD sind möglich. Web Workers werden erst nach Messungen eingeführt.
 
 State wird in City Data, Project Editor Settings, Runtime State (Selection, Hover, Drag, Tool, Undo/Redo, Conflicts, Dirty State, Worker-/Pixi-State, Texture Cache) und projektunabhängige Mapaya User Preferences (Theme, UI-Layout) getrennt. Runtime State und Undo/Redo-Historie gehören nicht ins CityProject; nach normalem Speichern ist es konsistent.
@@ -91,3 +110,15 @@ State wird in City Data, Project Editor Settings, Runtime State (Selection, Hove
 Generator und Editor verwenden dasselbe Modell; generierte Städte sind editierbar; Roads sind stadtweit; Districts teilen Boundaries; Änderungen propagieren nach unten; lokale Neuberechnung, Locks und manuelle Änderungen werden respektiert; Domainlogik bleibt unabhängig von React/PixiJS; Meter sind World Units; Pixel sind Rendererangelegenheit; Formate werden versioniert/migriert; keine vorsorgliche Komplexität; Optimierung erfolgt anhand von Messungen.
 
 > **Planungsstatus:** Dieses Dokument definiert den aktuellen Planungsstand. Als offen markierte Details dürfen bei der Implementierung nicht stillschweigend als endgültige Architekturentscheidung festgelegt werden.
+
+### Ausdrücklich offene Asset- und Visual-Entscheidungen
+
+- PNG, SVG, WebP oder andere Grafikformate
+- konkretes AssetLibrary-Format
+- konkrete Style-Typen
+- Road-Meshing- und Polygonalgorithmen
+- Texture Tiling
+- Material Blending
+- Shader
+- Custom Assets und Paketierung
+- konkrete PixiJS-Umsetzung
