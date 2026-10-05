@@ -1,11 +1,79 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics } from 'pixi.js'
+import type { CityProject, District, Point } from '../../domain/index.ts'
+import { demoCityProject } from './demo-city-project.ts'
 
-const MAP_SIZE = 5000
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 4
-const FINE_GRID_SIZE = 100
-const MAJOR_GRID_SIZE = 500
+const GRID_STEP = 10
+const MAJOR_GRID_STEP = 100
+
+const getNodePosition = (project: CityProject, nodeId: string): Point => {
+  const node = project.city.districts.nodes.find((candidate) => candidate.id === nodeId)
+  if (!node) throw new Error(`Missing district boundary node: ${nodeId}`)
+  return node.position
+}
+
+const getBoundaryPoints = (project: CityProject, boundaryId: string, reversed: boolean): Point[] => {
+  const boundary = project.city.districts.boundaries.find((candidate) => candidate.id === boundaryId)
+  if (!boundary) throw new Error(`Missing district boundary: ${boundaryId}`)
+  const start = getNodePosition(project, reversed ? boundary.endNodeId : boundary.startNodeId)
+  const end = getNodePosition(project, reversed ? boundary.startNodeId : boundary.endNodeId)
+  const path = reversed ? [...boundary.path.points].reverse() : boundary.path.points
+  return [start, ...path, end]
+}
+
+const getDistrictPoints = (project: CityProject, district: District): Point[] =>
+  district.boundaryLoop.flatMap((boundaryRef) => getBoundaryPoints(project, boundaryRef.boundaryId, boundaryRef.reversed))
+
+const drawGrid = (graphics: Graphics, project: CityProject, step: number, color: number, alpha: number, width: number) => {
+  const { minX, minY, maxX, maxY } = project.city.world.bounds
+  for (let x = minX; x <= maxX; x += step) graphics.moveTo(x, minY).lineTo(x, maxY)
+  for (let y = minY; y <= maxY; y += step) graphics.moveTo(minX, y).lineTo(maxX, y)
+  graphics.stroke({ color, alpha, width })
+}
+
+const drawProject = (project: CityProject, world: Container) => {
+  const background = new Graphics()
+  const fineGrid = new Graphics()
+  const majorGrid = new Graphics()
+  const districts = new Graphics()
+  const roads = new Graphics()
+  const objects = new Graphics()
+  const boundary = new Graphics()
+  const origin = new Graphics()
+  const { minX, minY, maxX, maxY } = project.city.world.bounds
+
+  background.rect(minX, minY, maxX - minX, maxY - minY).fill({ color: 0x172235 })
+  drawGrid(fineGrid, project, GRID_STEP, 0x41617e, 0.3, 1)
+  drawGrid(majorGrid, project, MAJOR_GRID_STEP, 0x9ab5d1, 0.62, 2)
+
+  for (const district of project.city.districts.items) {
+    const points = getDistrictPoints(project, district).flatMap((point) => [point.x, point.y])
+    districts.poly(points).fill({ color: district.color ?? '#64748b', alpha: 0.23 })
+  }
+  for (const road of project.city.roads.roads) {
+    const roadGraphic = new Graphics()
+    const [firstPoint, ...remainingPoints] = road.path.points
+    if (!firstPoint) continue
+    roadGraphic.moveTo(firstPoint.x, firstPoint.y)
+    for (const point of remainingPoints) roadGraphic.lineTo(point.x, point.y)
+    roadGraphic.stroke({ color: 0xe2c18a, alpha: 0.9, width: road.width })
+    roads.addChild(roadGraphic)
+  }
+  for (const mapObject of project.city.objects) {
+    const { position, rotation } = mapObject.transform
+    const building = new Graphics()
+    building.rect(-24, -16, 48, 32).fill({ color: 0xf8fafc, alpha: 0.92 }).stroke({ color: 0x1e293b, width: 3 })
+    building.position.set(position.x, position.y)
+    building.rotation = (rotation * Math.PI) / 180
+    objects.addChild(building)
+  }
+
+  boundary.rect(minX, minY, maxX - minX, maxY - minY).stroke({ color: 0xf8fafc, alpha: 0.95, width: 6 })
+  origin.moveTo(-18, 0).lineTo(18, 0).moveTo(0, -18).lineTo(0, 18).stroke({ color: 0xf97316, width: 4 })
+  world.addChild(background, fineGrid, majorGrid, districts, roads, objects, boundary, origin)
+}
 
 export const MapCanvas = () => {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -13,41 +81,35 @@ export const MapCanvas = () => {
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-
     const application = new Application()
     const world = new Container()
-    const fineGrid = new Graphics()
-    const majorGrid = new Graphics()
-    const boundary = new Graphics()
-    const markers = new Graphics()
+    let zoom = 1
     let isPanning = false
     let lastPointerX = 0
     let lastPointerY = 0
-    let zoom = 1
     let isDisposed = false
     let isInitialized = false
 
-    const resize = () => {
-      application.renderer.resize(host.clientWidth, host.clientHeight)
+    const centerWorld = () => {
+      const { minX, minY, maxX, maxY } = demoCityProject.city.world.bounds
+      const width = maxX - minX
+      const height = maxY - minY
+      zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(host.clientWidth / width, host.clientHeight / height) * 0.82))
+      world.scale.set(zoom)
+      world.position.set((host.clientWidth - width * zoom) / 2 - minX * zoom, (host.clientHeight - height * zoom) / 2 - minY * zoom)
     }
-
+    const resize = () => application.renderer.resize(host.clientWidth, host.clientHeight)
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault()
       const bounds = application.canvas.getBoundingClientRect()
       const pointerX = event.clientX - bounds.left
       const pointerY = event.clientY - bounds.top
-      const mapX = (pointerX - world.x) / zoom
-      const mapY = (pointerY - world.y) / zoom
-      const nextZoom = Math.min(
-        MAX_ZOOM,
-        Math.max(MIN_ZOOM, zoom * Math.pow(1.0015, -event.deltaY)),
-      )
-
-      world.scale.set(nextZoom)
-      world.position.set(pointerX - mapX * nextZoom, pointerY - mapY * nextZoom)
-      zoom = nextZoom
+      const worldX = (pointerX - world.position.x) / zoom
+      const worldY = (pointerY - world.position.y) / zoom
+      zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * Math.pow(1.0015, -event.deltaY)))
+      world.scale.set(zoom)
+      world.position.set(pointerX - worldX * zoom, pointerY - worldY * zoom)
     }
-
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 1) return
       isPanning = true
@@ -56,7 +118,6 @@ export const MapCanvas = () => {
       application.canvas.setPointerCapture(event.pointerId)
       application.canvas.style.cursor = 'grabbing'
     }
-
     const handlePointerMove = (event: PointerEvent) => {
       if (!isPanning) return
       world.position.x += event.clientX - lastPointerX
@@ -64,37 +125,10 @@ export const MapCanvas = () => {
       lastPointerX = event.clientX
       lastPointerY = event.clientY
     }
-
-    const stopPanning = (event: PointerEvent) => {
-      if (event.button !== 1 && !isPanning) return
+    const stopPanning = () => {
       isPanning = false
       application.canvas.style.cursor = 'grab'
     }
-
-    const drawGridLines = (graphics: Graphics, spacing: number) => {
-      for (let offset = 0; offset <= MAP_SIZE; offset += spacing) {
-        graphics.moveTo(offset, 0).lineTo(offset, MAP_SIZE)
-        graphics.moveTo(0, offset).lineTo(MAP_SIZE, offset)
-      }
-    }
-
-    const drawMap = () => {
-      fineGrid.rect(0, 0, MAP_SIZE, MAP_SIZE).fill({ color: 0x172235 })
-      drawGridLines(fineGrid, FINE_GRID_SIZE)
-      fineGrid.stroke({ color: 0x6380a3, alpha: 0.5, width: 3 })
-
-      drawGridLines(majorGrid, MAJOR_GRID_SIZE)
-      majorGrid.stroke({ color: 0xb7c9df, alpha: 0.85, width: 7 })
-
-      boundary.rect(0, 0, MAP_SIZE, MAP_SIZE)
-      boundary.stroke({ color: 0xf8fafc, alpha: 1, width: 24 })
-
-      markers.circle(650, 700, 90).fill({ color: 0xf97316 }).stroke({ color: 0xffedd5, width: 14 })
-      markers.circle(2300, 1450, 140).fill({ color: 0x22d3ee }).stroke({ color: 0xecfeff, width: 14 })
-      markers.rect(3550, 700, 260, 200).fill({ color: 0xa855f7 }).stroke({ color: 0xf3e8ff, width: 14 })
-      markers.rect(1200, 3500, 320, 180).fill({ color: 0x84cc16 }).stroke({ color: 0xf7fee7, width: 14 })
-    }
-
     const initialize = async () => {
       await application.init({ background: '#0b1120', resizeTo: host })
       if (isDisposed) {
@@ -105,10 +139,9 @@ export const MapCanvas = () => {
       host.appendChild(application.canvas)
       application.canvas.className = 'map-canvas'
       application.canvas.style.cursor = 'grab'
-      drawMap()
-      world.addChild(fineGrid, majorGrid, boundary, markers)
-      world.position.set((host.clientWidth - MAP_SIZE) / 2, (host.clientHeight - MAP_SIZE) / 2)
+      drawProject(demoCityProject, world)
       application.stage.addChild(world)
+      centerWorld()
       application.canvas.addEventListener('wheel', handleWheel, { passive: false })
       application.canvas.addEventListener('pointerdown', handlePointerDown)
       application.canvas.addEventListener('pointermove', handlePointerMove)
@@ -116,9 +149,7 @@ export const MapCanvas = () => {
       application.canvas.addEventListener('pointercancel', stopPanning)
       window.addEventListener('resize', resize)
     }
-
     void initialize()
-
     return () => {
       isDisposed = true
       window.removeEventListener('resize', resize)
@@ -132,5 +163,5 @@ export const MapCanvas = () => {
     }
   }, [])
 
-  return <div ref={hostRef} className="map-canvas-host" />
+  return <div ref={hostRef} className="h-full w-full" />
 }
