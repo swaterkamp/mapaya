@@ -26,6 +26,14 @@ const getBoundaryPoints = (project: CityProject, boundaryId: string, reversed: b
 const getDistrictPoints = (project: CityProject, district: District): Point[] =>
   district.boundaryLoop.flatMap((boundaryRef) => getBoundaryPoints(project, boundaryRef.boundaryId, boundaryRef.reversed))
 
+const getRoadPoints = (project: CityProject, startNodeId: string, path: Point[], endNodeId: string): Point[] => {
+  const nodes = project.city.roads.nodes
+  const startNode = nodes.find((node) => node.id === startNodeId)
+  const endNode = nodes.find((node) => node.id === endNodeId)
+  if (!startNode || !endNode) throw new Error(`Missing road node: ${!startNode ? startNodeId : endNodeId}`)
+  return [startNode.position, ...path, endNode.position]
+}
+
 const drawGrid = (graphics: Graphics, project: CityProject, step: number, color: number, alpha: number, width: number) => {
   const { minX, minY, maxX, maxY } = project.city.world.bounds
   for (let x = minX; x <= maxX; x += step) graphics.moveTo(x, minY).lineTo(x, maxY)
@@ -54,7 +62,7 @@ const drawProject = (project: CityProject, world: Container) => {
   }
   for (const road of project.city.roads.roads) {
     const roadGraphic = new Graphics()
-    const [firstPoint, ...remainingPoints] = road.path.points
+    const [firstPoint, ...remainingPoints] = getRoadPoints(project, road.startNodeId, road.path.points, road.endNodeId)
     if (!firstPoint) continue
     roadGraphic.moveTo(firstPoint.x, firstPoint.y)
     for (const point of remainingPoints) roadGraphic.lineTo(point.x, point.y)
@@ -66,7 +74,7 @@ const drawProject = (project: CityProject, world: Container) => {
     const building = new Graphics()
     building.rect(-24, -16, 48, 32).fill({ color: 0xf8fafc, alpha: 0.92 }).stroke({ color: 0x1e293b, width: 3 })
     building.position.set(position.x, position.y)
-    building.rotation = (rotation * Math.PI) / 180
+    building.rotation = (-rotation * Math.PI) / 180
     objects.addChild(building)
   }
 
@@ -95,8 +103,8 @@ export const MapCanvas = () => {
       const width = maxX - minX
       const height = maxY - minY
       zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(host.clientWidth / width, host.clientHeight / height) * 0.82))
-      world.scale.set(zoom)
-      world.position.set((host.clientWidth - width * zoom) / 2 - minX * zoom, (host.clientHeight - height * zoom) / 2 - minY * zoom)
+      world.scale.set(zoom, -zoom)
+      world.position.set((host.clientWidth - width * zoom) / 2 - minX * zoom, (host.clientHeight - height * zoom) / 2 + minY * zoom)
     }
     const resize = () => application.renderer.resize(host.clientWidth, host.clientHeight)
     const handleWheel = (event: WheelEvent) => {
@@ -105,10 +113,10 @@ export const MapCanvas = () => {
       const pointerX = event.clientX - bounds.left
       const pointerY = event.clientY - bounds.top
       const worldX = (pointerX - world.position.x) / zoom
-      const worldY = (pointerY - world.position.y) / zoom
+      const worldY = (pointerY - world.position.y) / -zoom
       zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * Math.pow(1.0015, -event.deltaY)))
-      world.scale.set(zoom)
-      world.position.set(pointerX - worldX * zoom, pointerY - worldY * zoom)
+      world.scale.set(zoom, -zoom)
+      world.position.set(pointerX - worldX * zoom, pointerY + worldY * zoom)
     }
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 1) return

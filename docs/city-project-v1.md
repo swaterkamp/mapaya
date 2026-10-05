@@ -49,6 +49,8 @@ bounds:
 
 Koordinaten dürfen negativ und dezimal sein. Bounds beschreiben MapBounds, nicht die theoretische Weltgrenze.
 
+Das Domain Model verwendet ein kartesisches Koordinatensystem: +X zeigt nach Osten/rechts, +Y nach Norden/oben, -X nach Westen/links und -Y nach Süden/unten. Für MapBounds sind `minX`/`minY` die westliche/südliche beziehungsweise linke/untere Grenze und `maxX`/`maxY` die östliche/nördliche beziehungsweise rechte/obere Grenze.
+
 ### city.generation
 
 Die City-Generation ist optional. Wenn sie vorhanden ist, enthält sie ausschließlich die derzeit bekannten Felder `seed` und `generatorVersion`. Unbekannte Generatorparameter werden nicht über leere Settings-Interfaces oder eine beliebige unvalidierte JSON-Property-Bag vorweggenommen.
@@ -80,7 +82,7 @@ roads
 - roads[]
 ```
 
-Ein `RoadNode` enthält `id` und `position`. Eine `Road` enthält `id`, `startNodeId`, `endNodeId`, `path`, `width`, `type` und `provenance`. Ein verpflichtendes `districtId` gibt es nicht. `RoadType` wird noch nicht als vollständige Union festgelegt; insbesondere ist `bridge` kein RoadType.
+Ein `RoadNode` enthält `id` und `position`. Eine `Road` enthält `id`, `startNodeId`, `endNodeId`, `path`, `width`, `type` und `provenance`. Ein verpflichtendes `districtId` gibt es nicht. `RoadType` wird noch nicht als vollständige Union festgelegt; insbesondere ist `bridge` kein RoadType. Die vollständige Road-Geometrie wird aus `startNode.position`, den Zwischenpunkten in `path.points` und `endNode.position` gebildet. `path.points` enthält ausschließlich Zwischenpunkte; eine gerade Road hat `path.points: []`.
 
 ### city.infrastructure
 
@@ -140,7 +142,7 @@ Transform
 - rotation
 ```
 
-Position liegt in Metern. Rotation soll menschenlesbar in Grad gespeichert werden, sofern später kein gewichtiger Grund dagegen spricht. Ein persistentes `scale`-Feld ist in v1 noch nicht Bestandteil des Formats.
+Position liegt in Metern. Rotation wird in Grad gespeichert: 0° zeigt entlang +X, 90° entlang +Y, 180° entlang -X und 270° beziehungsweise -90° entlang -Y; positive Rotation erfolgt gegen den Uhrzeigersinn. Ein persistentes `scale`-Feld ist in v1 noch nicht Bestandteil des Formats. Die Grundausrichtung bei 0° wird vom Asset selbst definiert.
 
 ## Gemeinsame Konzepte
 
@@ -175,7 +177,7 @@ Polygon
 - outer: Point[]
 ```
 
-`Path` ist zunächst ausschließlich eine Polyline. Ein Polygon besitzt in v1 nur den äußeren Ring `outer`, keine Löcher. Der Polygonring wird implizit geschlossen; der erste Punkt muss daher nicht am Ende wiederholt werden. Die Punkte eines `DistrictBoundary.path` enthalten die referenzierten Start- und Endnodes nicht nochmals. MultiPolygons, Kurven und weitere Geometrieformen bleiben offen.
+`Path` ist zunächst ausschließlich eine Polyline. Bei DistrictBoundaries und Roads enthält `path.points` ausschließlich Zwischenpunkte; Start- und Endposition werden über die jeweiligen Node-Referenzen ergänzt. Ein Polygon besitzt in v1 nur den äußeren Ring `outer`, keine Löcher. Der Polygonring wird implizit geschlossen; der erste Punkt muss daher nicht am Ende wiederholt werden. Für persistierte Polygone wird keine Clockwise-/Counter-Clockwise-Reihenfolge vorgeschrieben; Geometriealgorithmen dürfen die Orientierung bei Bedarf intern bestimmen und normalisieren. MultiPolygons, Kurven und weitere Geometrieformen bleiben offen.
 
 ## editor
 
@@ -197,6 +199,8 @@ Nicht persistent sind Selection, Hover, Drag State, Active Tool, Undo/Redo-Stack
 Die AssetLibrary ist kein Bestandteil des CityProject. Das Projekt speichert stabile `assetId`-Referenzen; `EntityId` bleibt in v1 konzeptionell ein einfacher `string`-Wert, ohne branded IDs. Eingebettete Base64-Textures gibt es nicht. Custom Assets und portable Projekte bleiben offen.
 
 Nicht persistent, sondern aus den Projektdaten aufzubauen, sind Boundary-zu-District-Index, Road/Boundary-Intersections, District Road Entry Points, Spatial Indices, Collision Cache, Render Bounds, Dirty-/Invalidation-Graph und RegenerationScope.
+
+Die Abbildung der Domain World auf Pixi-/Bildschirmkoordinaten erfolgt ausschließlich in der Renderer-/Camera-Schicht. PixiJS kann intern +Y nach unten verwenden; persistierte Domain-Daten werden dafür nicht invertiert.
 
 Ein normal gespeichertes CityProject beschreibt einen konsistenten fachlichen Zustand. Regenerationskonflikte und halbfertige Operationen werden in v1 nicht gespeichert.
 
