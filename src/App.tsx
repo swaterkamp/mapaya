@@ -1,5 +1,5 @@
-import { CityMapEditor } from './features/city-map/CityMapEditor'
+import { CityMapEditor } from './features/city-map/CityMapEditor';
 
-const App = () => <CityMapEditor />
+const App = () => <CityMapEditor />;
 
-export default App
+export default App;

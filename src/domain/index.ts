@@ -1,4 +1,4 @@
-export type { ObjectAsset, ObjectAssetCategory } from './assets.ts'
+export type { ObjectAsset, ObjectAssetCategory } from './assets.ts';
 
 export type {
   BoundaryNode,
@@ -33,6 +33,6 @@ export type {
   Viewport,
   Wall,
   World,
-} from './city-project.ts'
+} from './city-project.ts';
 
-export type { Geometry, Path, Point, Polygon } from './geometry.ts'
+export type { Geometry, Path, Point, Polygon } from './geometry.ts';

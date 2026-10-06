@@ -74,7 +74,6 @@ Das Format muss JSON-Import und -Export unterstützen. Importierte JSON-Daten ge
 - Bevor neue Abstraktionen, Helper, Hooks, Services oder Wrapper erstellt werden, prüfen, ob sie tatsächlich mehrfach benötigt werden oder eine komplexe Verantwortung sinnvoll kapseln. Keine Abstraktionen ausschließlich für hypothetische zukünftige Anforderungen erstellen. Einfachen, direkt verständlichen Code gegenüber vorschneller Generalisierung bevorzugen.
 - Verwende Arrow-Notation für Funktionen
 
-
 ## Arbeitsablauf für Änderungen
 
 1. Relevante Dateien, Datenflüsse und bestehende Konventionen vor der Änderung lesen.
