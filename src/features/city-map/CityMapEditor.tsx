@@ -1,6 +1,13 @@
 import { MapCanvas } from './MapCanvas';
 
-const MAIN = "h-screen w-screen overflow-hidden bg-slate-950 touch-none select-none"
+const MAIN = `
+  h-full
+  w-full
+  overflow-hidden
+  touch-none
+  select-none
+  bg-background
+`;
 
 export const CityMapEditor = () => (
   <main

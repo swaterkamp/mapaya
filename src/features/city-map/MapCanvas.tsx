@@ -100,7 +100,6 @@ const drawMissingAsset = (graphics: Graphics) => {
 };
 
 const drawProject = (project: CityProject, world: Container) => {
-  const background = new Graphics();
   const fineGrid = new Graphics();
   const majorGrid = new Graphics();
   const districts = new Graphics();
@@ -110,9 +109,6 @@ const drawProject = (project: CityProject, world: Container) => {
   const origin = new Graphics();
   const { minX, minY, maxX, maxY } = project.city.world.bounds;
 
-  background
-    .rect(minX, minY, maxX - minX, maxY - minY)
-    .fill({ color: 0x172235 });
   drawGrid(fineGrid, project, GRID_STEP, 0x41617e, 0.3, 1);
   drawGrid(majorGrid, project, MAJOR_GRID_STEP, 0x9ab5d1, 0.62, 2);
 
@@ -160,7 +156,6 @@ const drawProject = (project: CityProject, world: Container) => {
     .lineTo(0, 18)
     .stroke({ color: 0xf97316, width: 4 });
   world.addChild(
-    background,
     fineGrid,
     majorGrid,
     districts,
@@ -239,7 +234,7 @@ export const MapCanvas = () => {
       application.canvas.style.cursor = 'grab';
     };
     const initialize = async () => {
-      await application.init({ background: '#0b1120', resizeTo: host });
+      await application.init({ backgroundAlpha: 0, resizeTo: host });
       if (isDisposed) {
         application.destroy(true);
         return;

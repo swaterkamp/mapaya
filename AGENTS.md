@@ -69,6 +69,7 @@ Das Format muss JSON-Import und -Export unterstützen. Importierte JSON-Daten ge
 - Bei KI-generiertem Code besonders auf doppelte Logik, erfundene APIs, unnötige Abhängigkeiten, unvollständige Fehlerbehandlung und unbeabsichtigte Re-Renders prüfen.
 - Änderungen möglichst klein und thematisch geschlossen halten. Keine opportunistischen Refactorings ohne Bezug zur aktuellen Aufgabe.
 - Tailwind CSS für das Styling verwenden. Längere, wiederverwendete oder semantisch zusammengehörige Klassenlisten als benannte Konstanten oberhalb der Komponente definieren. Inline-Styles vermeiden; dynamische Werte, die sich nicht sinnvoll mit statischen Tailwind-Klassen ausdrücken lassen, sind ausgenommen.
+- Jede Tailwind-Klasse in benannten Klassenlisten in einer eigenen Zeile schreiben. Die Namen der Konstanten sollen die UI-Rolle des jeweiligen Nodes beschreiben.
 - Typescript Types sollen einfach gehalten werden, vermeide, wenn möglich, Utility-Types
 - Keine impliziten Props. Alle appinternen Props einer Komponente sollen explizit gelistet werden. Darunter fallen keine Standard-Props für reine html Elemente, wenn diese nicht explizit von der App genutzt werden.
 - Bevor neue Abstraktionen, Helper, Hooks, Services oder Wrapper erstellt werden, prüfen, ob sie tatsächlich mehrfach benötigt werden oder eine komplexe Verantwortung sinnvoll kapseln. Keine Abstraktionen ausschließlich für hypothetische zukünftige Anforderungen erstellen. Einfachen, direkt verständlichen Code gegenüber vorschneller Generalisierung bevorzugen.

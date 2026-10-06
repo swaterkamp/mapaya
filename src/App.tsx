@@ -1,5 +1,5 @@
-import { CityMapEditor } from './features/city-map/CityMapEditor';
+import Layout from './components/layout/Layout';
 
-const App = () => <CityMapEditor />;
+const App = () => <Layout />;
 
 export default App;
