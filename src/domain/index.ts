@@ -1,3 +1,5 @@
+export type { ObjectAsset, ObjectAssetCategory } from './assets.ts'
+
 export type {
   BoundaryNode,
   BoundaryRef,

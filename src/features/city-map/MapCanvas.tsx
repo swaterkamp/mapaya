@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics } from 'pixi.js'
 import type { CityProject, District, Point } from '../../domain/index.ts'
+import type { Polygon } from '../../domain/geometry.ts'
+import { getObjectAsset } from './demo-asset-library.ts'
 import { demoCityProject } from './demo-city-project.ts'
 
 const MIN_ZOOM = 0.1
@@ -41,6 +43,16 @@ const drawGrid = (graphics: Graphics, project: CityProject, step: number, color:
   graphics.stroke({ color, alpha, width })
 }
 
+const drawFootprint = (graphics: Graphics, footprint: Polygon) => {
+  const points = footprint.outer.flatMap((point) => [point.x, point.y])
+  graphics.poly(points).fill({ color: 0xf8fafc, alpha: 0.92 }).stroke({ color: 0x1e293b, width: 1.5 })
+}
+
+const drawMissingAsset = (graphics: Graphics) => {
+  graphics.rect(-16, -12, 32, 24).fill({ color: 0xef4444, alpha: 0.9 }).stroke({ color: 0xfef2f2, width: 2 })
+  graphics.moveTo(-10, -7).lineTo(10, 7).moveTo(10, -7).lineTo(-10, 7).stroke({ color: 0xfef2f2, width: 2 })
+}
+
 const drawProject = (project: CityProject, world: Container) => {
   const background = new Graphics()
   const fineGrid = new Graphics()
@@ -72,7 +84,9 @@ const drawProject = (project: CityProject, world: Container) => {
   for (const mapObject of project.city.objects) {
     const { position, rotation } = mapObject.transform
     const building = new Graphics()
-    building.rect(-24, -16, 48, 32).fill({ color: 0xf8fafc, alpha: 0.92 }).stroke({ color: 0x1e293b, width: 3 })
+    const asset = getObjectAsset(mapObject.assetId)
+    if (asset?.footprint) drawFootprint(building, asset.footprint)
+    else drawMissingAsset(building)
     building.position.set(position.x, position.y)
     building.rotation = (-rotation * Math.PI) / 180
     objects.addChild(building)
