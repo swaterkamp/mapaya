@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { SidebarTrigger } from '../ui/sidebar';
 
 type HeaderProps = {
+  cityName: string;
   isDark: boolean;
   onToggleTheme: () => void;
   onExportProject: () => void;
@@ -34,16 +35,20 @@ const THEME_BUTTON_LABEL = (isDark: boolean) =>
   isDark ? 'Light theme' : 'Dark theme';
 
 export const Header = ({
+  cityName,
   isDark,
   onToggleTheme,
   onExportProject,
   onImportProject,
 }: HeaderProps) => (
-  <header className={HEADER}>
+  <header className={`${HEADER} relative`}>
     <div className={HEADER_BRAND}>
       <SidebarTrigger className={SIDEBAR_TRIGGER} />
       <img src="/mapaya-logo-horizontal.png" alt="Mapaya" className={LOGO} />
     </div>
+    <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 truncate px-24 text-sm font-semibold text-text-primary">
+      {cityName}
+    </h1>
     <div className="flex items-center gap-1">
       <Button
         variant="ghost"

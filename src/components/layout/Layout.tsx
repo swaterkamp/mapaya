@@ -91,6 +91,7 @@ const Layout = () => {
     <SidebarProvider>
       <div className={LAYOUT}>
         <Header
+          cityName={project.metadata.name}
           isDark={isDark}
           onToggleTheme={() => setIsDark(value => !value)}
           onExportProject={handleExportProject}

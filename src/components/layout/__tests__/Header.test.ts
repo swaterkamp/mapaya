@@ -9,6 +9,7 @@ test('renders the brand and theme toggle', () => {
       SidebarProvider,
       null,
       createElement(Header, {
+        cityName: 'Test City',
         isDark: false,
         onToggleTheme: () => undefined,
         onExportProject: () => undefined,
