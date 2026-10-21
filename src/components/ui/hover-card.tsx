@@ -4,26 +4,29 @@ import * as React from "react"
 import { cn } from "cn"
 import { HoverCard as HoverCardPrimitive } from "radix-ui"
 
-function HoverCard({
+/** Renders the HoverCard UI element. */
+const HoverCard = ({
   ...props
-}: React.ComponentProps<typeof HoverCardPrimitive.Root>) {
+}: React.ComponentProps<typeof HoverCardPrimitive.Root>) => {
   return <HoverCardPrimitive.Root data-slot="hover-card" {...props} />
 }
 
-function HoverCardTrigger({
+/** Renders the HoverCardTrigger UI element. */
+const HoverCardTrigger = ({
   ...props
-}: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) {
+}: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) => {
   return (
     <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
   )
 }
 
-function HoverCardContent({
+/** Renders the HoverCardContent UI element. */
+const HoverCardContent = ({
   className,
   align = "center",
   sideOffset = 4,
   ...props
-}: React.ComponentProps<typeof HoverCardPrimitive.Content>) {
+}: React.ComponentProps<typeof HoverCardPrimitive.Content>) => {
   return (
     <HoverCardPrimitive.Portal data-slot="hover-card-portal">
       <HoverCardPrimitive.Content

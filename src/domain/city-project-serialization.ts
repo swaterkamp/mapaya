@@ -2,17 +2,21 @@ import type { CityProject } from './city-project.ts';
 
 type JsonRecord = { [key: string]: unknown };
 
+/** Checks whether an untrusted value has object fields. */
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+/** Checks the shape of a serialized world point. */
 const isPoint = (value: unknown): boolean =>
   isRecord(value) && typeof value.x === 'number' && typeof value.y === 'number';
 
+/** Checks the shape of a serialized object transform. */
 const isTransform = (value: unknown): boolean =>
   isRecord(value) &&
   isPoint(value.position) &&
   typeof value.rotation === 'number';
 
+/** Checks the fields needed to edit a serialized map object. */
 const isMapObject = (value: unknown): boolean =>
   isRecord(value) &&
   typeof value.id === 'string' &&
@@ -26,6 +30,7 @@ const isMapObject = (value: unknown): boolean =>
   typeof value.provenance.userModified === 'boolean' &&
   typeof value.provenance.locked === 'boolean';
 
+/** Checks the supported project version and required root fields. */
 const isCityProject = (value: unknown): value is CityProject => {
   if (!isRecord(value) || value.formatVersion !== 1) return false;
   if (!isRecord(value.metadata) || typeof value.metadata.id !== 'string')
@@ -68,5 +73,6 @@ export const parseCityProject = (json: string): CityProject => {
   return value;
 };
 
+/** Serializes the active project for storage or download. */
 export const serializeCityProject = (project: CityProject): string =>
   JSON.stringify(project, null, 2);

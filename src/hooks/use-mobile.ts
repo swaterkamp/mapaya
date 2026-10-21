@@ -2,6 +2,7 @@ import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
 
+/** Tracks whether the viewport matches the mobile breakpoint. */
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 

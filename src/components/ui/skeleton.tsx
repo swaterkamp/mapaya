@@ -1,6 +1,7 @@
 import { cn } from "cn"
 
-function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
+/** Renders the Skeleton UI element. */
+const Skeleton = ({ className, ...props }: React.ComponentProps<"div">) => {
   return (
     <div
       data-slot="skeleton"

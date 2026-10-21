@@ -44,6 +44,7 @@ const EDITOR_HOST = `
   inset-0
 `;
 
+/** Owns the active project and connects editor actions to the header. */
 const Layout = () => {
   const [isDark, setIsDark] = useState(
     () => document.documentElement.dataset.theme === 'dark',
@@ -57,6 +58,7 @@ const Layout = () => {
     document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
   }, [isDark]);
 
+  /** Downloads the current project as a JSON file. */
   const handleExportProject = () => {
     const blob = new Blob([serializeCityProject(project)], {
       type: 'application/json',
@@ -69,7 +71,9 @@ const Layout = () => {
     URL.revokeObjectURL(url);
   };
 
+  /** Opens the browser's JSON file chooser. */
   const handleImportProject = () => fileInputRef.current?.click();
+  /** Validates a chosen file before replacing the current project. */
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';

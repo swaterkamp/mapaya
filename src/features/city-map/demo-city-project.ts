@@ -6,6 +6,7 @@ const manualProvenance = {
   locked: false,
 };
 
+/** Creates a world coordinate for the demo project. */
 const point = (x: number, y: number): Point => ({ x, y });
 
 export const demoCityProject: CityProject = {

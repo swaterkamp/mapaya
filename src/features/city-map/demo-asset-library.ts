@@ -1,8 +1,10 @@
 import type { ObjectAsset } from '../../domain/assets.ts';
 import type { Point } from '../../domain/geometry.ts';
 
+/** Creates a local footprint coordinate. */
 const point = (x: number, y: number): Point => ({ x, y });
 
+/** Builds a centered rectangular demo footprint. */
 const rectangleFootprint = (width: number, height: number) => ({
   outer: [
     point(-width / 2, -height / 2),
@@ -41,5 +43,6 @@ const demoObjectAssets: ObjectAsset[] = [
 
 const assetsById = new Map(demoObjectAssets.map(asset => [asset.id, asset]));
 
+/** Resolves a demo object asset by stable ID. */
 export const getObjectAsset = (assetId: string): ObjectAsset | undefined =>
   assetsById.get(assetId);

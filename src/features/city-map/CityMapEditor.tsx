@@ -15,6 +15,7 @@ export type CityMapEditorProps = {
   onProjectChange: (project: CityProject) => void;
 };
 
+/** Hosts the editable city canvas. */
 export const CityMapEditor = ({
   project,
   onProjectChange,

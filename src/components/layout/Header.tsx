@@ -1,6 +1,7 @@
 import { Download, Moon, Sun, Upload } from 'lucide-react';
 import { Button } from '../ui/button';
 import { SidebarTrigger } from '../ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 type HeaderProps = {
   cityName: string;
@@ -31,9 +32,11 @@ const LOGO = 'h-10';
 const SIDEBAR_TRIGGER = `
   text-text-primary
 `;
+/** Names the theme that the button will activate. */
 const THEME_BUTTON_LABEL = (isDark: boolean) =>
   isDark ? 'Light theme' : 'Dark theme';
 
+/** Displays the city name and application actions. */
 export const Header = ({
   cityName,
   isDark,
@@ -50,30 +53,47 @@ export const Header = ({
       {cityName}
     </h1>
     <div className="flex items-center gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onExportProject}
-        aria-label="Projekt speichern"
-      >
-        <Download />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onImportProject}
-        aria-label="Projekt laden"
-      >
-        <Upload />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onToggleTheme}
-        aria-label={THEME_BUTTON_LABEL(isDark)}
-      >
-        {isDark ? <Sun /> : <Moon />}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onExportProject}
+            aria-label="Projekt speichern"
+          >
+            <Download />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Projekt als JSON speichern</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onImportProject}
+            aria-label="Projekt laden"
+          >
+            <Upload />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Gespeichertes JSON-Projekt laden</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleTheme}
+            aria-label={THEME_BUTTON_LABEL(isDark)}
+          >
+            {isDark ? <Sun /> : <Moon />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isDark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
+        </TooltipContent>
+      </Tooltip>
     </div>
   </header>
 );

@@ -1,7 +1,8 @@
 import * as React from "react"
 import { cn } from "cn"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+/** Renders the Input UI element. */
+const Input = ({ className, type, ...props }: React.ComponentProps<"input">) => {
   return (
     <input
       type={type}
