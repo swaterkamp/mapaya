@@ -36,3 +36,5 @@ export type {
 } from './city-project.ts';
 
 export type { Geometry, Path, Point, Polygon } from './geometry.ts';
+
+export { parseCityProject, serializeCityProject } from './city-project-serialization.ts';

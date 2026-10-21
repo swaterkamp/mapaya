@@ -1,7 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { Header } from './Header';
 import { Sidebar, SidebarContent, SidebarProvider } from '../ui/sidebar';
 import { CityMapEditor } from '../../features/city-map/CityMapEditor';
+import type { CityProject } from '../../domain/city-project.ts';
+import {
+  parseCityProject,
+  serializeCityProject,
+} from '../../domain/city-project-serialization.ts';
+import { demoCityProject } from '../../features/city-map/demo-city-project';
+import {
+  loadStoredCityProject,
+  storeCityProject,
+} from '../../features/city-map/city-project-storage';
 
 const LAYOUT = `
   flex
@@ -34,16 +45,64 @@ const EDITOR_HOST = `
 `;
 
 const Layout = () => {
-  const [isDark, setIsDark] = useState(() => document.documentElement.dataset.theme === 'dark');
+  const [isDark, setIsDark] = useState(
+    () => document.documentElement.dataset.theme === 'dark',
+  );
+  const [project, setProject] = useState<CityProject>(
+    () => loadStoredCityProject() ?? structuredClone(demoCityProject),
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
   }, [isDark]);
 
+  const handleExportProject = () => {
+    const blob = new Blob([serializeCityProject(project)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mapaya-city-project.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportProject = () => fileInputRef.current?.click();
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const project = parseCityProject(await file.text());
+      setProject(project);
+      storeCityProject(project);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : 'Projekt konnte nicht geladen werden.',
+      );
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className={LAYOUT}>
-        <Header isDark={isDark} onToggleTheme={() => setIsDark(value => !value)} />
+        <Header
+          isDark={isDark}
+          onToggleTheme={() => setIsDark(value => !value)}
+          onExportProject={handleExportProject}
+          onImportProject={handleImportProject}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={handleFileChange}
+        />
         <div className={WORKSPACE}>
           <Sidebar className={SIDEBAR}>
             <SidebarContent className={SIDEBAR_CONTENT}>
@@ -51,7 +110,13 @@ const Layout = () => {
             </SidebarContent>
           </Sidebar>
           <div className={EDITOR_HOST}>
-            <CityMapEditor />
+            <CityMapEditor
+              project={project}
+              onProjectChange={nextProject => {
+                setProject(nextProject);
+                storeCityProject(nextProject);
+              }}
+            />
           </div>
         </div>
       </div>

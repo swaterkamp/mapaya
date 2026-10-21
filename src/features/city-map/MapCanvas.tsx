@@ -1,9 +1,30 @@
-import { useEffect, useRef } from 'react';
-import { Application, Container, Graphics } from 'pixi.js';
-import type { CityProject, District, Point } from '../../domain/index.ts';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ArrowClockwiseIcon,
+  ArrowsOutCardinalIcon,
+} from '@phosphor-icons/react';
+import {
+  Application,
+  Container,
+  FederatedPointerEvent,
+  Graphics,
+  Polygon as PixiPolygon,
+  Rectangle,
+} from 'pixi.js';
+import type {
+  CityProject,
+  District,
+  MapObject,
+  Point,
+} from '../../domain/index.ts';
 import type { Polygon } from '../../domain/geometry.ts';
 import { getObjectAsset } from './demo-asset-library.ts';
-import { demoCityProject } from './demo-city-project.ts';
+
+type MapScene = {
+  objects: Container;
+  selection: Graphics;
+  objectGraphics: Map<string, Graphics>;
+};
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
@@ -99,12 +120,77 @@ const drawMissingAsset = (graphics: Graphics) => {
     .stroke({ color: 0xfef2f2, width: 2 });
 };
 
-const drawProject = (project: CityProject, world: Container) => {
+const getFootprintPoints = (footprint: Polygon): number[] =>
+  footprint.outer.flatMap(point => [point.x, point.y]);
+
+const getPrimaryColor = (): string => {
+  const primary = getComputedStyle(document.documentElement)
+    .getPropertyValue('--primary')
+    .trim();
+  return primary || '#F47C3C';
+};
+
+const drawSelection = (
+  graphics: Graphics,
+  mapObjectId: string | null,
+  project: CityProject,
+) => {
+  graphics.clear();
+  if (!mapObjectId) return;
+
+  const mapObject = project.city.objects.find(
+    candidate => candidate.id === mapObjectId,
+  );
+  if (!mapObject) return;
+
+  const asset = getObjectAsset(mapObject.assetId);
+  const primaryColor = getPrimaryColor();
+  graphics.position.set(
+    mapObject.transform.position.x,
+    mapObject.transform.position.y,
+  );
+  graphics.rotation = (-mapObject.transform.rotation * Math.PI) / 180;
+  if (asset?.footprint) {
+    graphics
+      .poly(getFootprintPoints(asset.footprint))
+      .stroke({ color: primaryColor, alpha: 1, width: 3 });
+    return;
+  }
+
+  graphics
+    .rect(-18, -14, 36, 28)
+    .stroke({ color: primaryColor, alpha: 1, width: 3 });
+};
+
+const createMapObjectGraphic = (mapObject: MapObject): Graphics => {
+  const building = new Graphics();
+  const asset = getObjectAsset(mapObject.assetId);
+  if (asset?.footprint) {
+    drawFootprint(building, asset.footprint);
+    building.hitArea = new PixiPolygon(getFootprintPoints(asset.footprint));
+  } else {
+    drawMissingAsset(building);
+    building.hitArea = new Rectangle(-16, -12, 32, 24);
+  }
+  building.position.set(
+    mapObject.transform.position.x,
+    mapObject.transform.position.y,
+  );
+  building.rotation = (-mapObject.transform.rotation * Math.PI) / 180;
+  building.eventMode = 'static';
+  building.cursor = 'pointer';
+  return building;
+};
+
+const drawProject = (project: CityProject, world: Container): MapScene => {
   const fineGrid = new Graphics();
   const majorGrid = new Graphics();
   const districts = new Graphics();
   const roads = new Graphics();
-  const objects = new Graphics();
+  const objects = new Container();
+  const selection = new Graphics();
+  selection.eventMode = 'none';
+  const objectGraphics = new Map<string, Graphics>();
   const boundary = new Graphics();
   const origin = new Graphics();
   const { minX, minY, maxX, maxY } = project.city.world.bounds;
@@ -136,13 +222,8 @@ const drawProject = (project: CityProject, world: Container) => {
     roads.addChild(roadGraphic);
   }
   for (const mapObject of project.city.objects) {
-    const { position, rotation } = mapObject.transform;
-    const building = new Graphics();
-    const asset = getObjectAsset(mapObject.assetId);
-    if (asset?.footprint) drawFootprint(building, asset.footprint);
-    else drawMissingAsset(building);
-    building.position.set(position.x, position.y);
-    building.rotation = (-rotation * Math.PI) / 180;
+    const building = createMapObjectGraphic(mapObject);
+    objectGraphics.set(mapObject.id, building);
     objects.addChild(building);
   }
 
@@ -161,28 +242,61 @@ const drawProject = (project: CityProject, world: Container) => {
     districts,
     roads,
     objects,
+    selection,
     boundary,
     origin,
   );
+  return { objects, selection, objectGraphics };
 };
 
-export const MapCanvas = () => {
+export type MapCanvasProps = {
+  project: CityProject;
+  onProjectChange: (project: CityProject) => void;
+};
+
+export const MapCanvas = ({ project, onProjectChange }: MapCanvasProps) => {
   const hostRef = useRef<HTMLDivElement>(null);
+  const [selectedMapObjectId, setSelectedMapObjectId] = useState<string | null>(
+    null,
+  );
+  const [interactionMode, setInteractionMode] = useState<'move' | 'rotate'>(
+    'move',
+  );
+  const [indicatorPosition, setIndicatorPosition] = useState({ x: 0, y: 0 });
+  const projectRef = useRef(project);
+  const projectChangeRef = useRef(onProjectChange);
+  const sceneRef = useRef<MapScene | null>(null);
+  const selectedMapObjectIdRef = useRef<string | null>(null);
+  const worldRef = useRef<Container | null>(null);
+
+  useEffect(() => {
+    projectRef.current = project;
+    projectChangeRef.current = onProjectChange;
+  }, [onProjectChange, project]);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const application = new Application();
     const world = new Container();
+    worldRef.current = world;
     let zoom = 1;
     let isPanning = false;
+    let isPointerDown = false;
+    let isDragging = false;
+    let didSelectObject = false;
+    let pointerDownX = 0;
+    let pointerDownY = 0;
+    let dragMode: 'move' | 'rotate' = 'move';
+    let dragObjectId: string | null = null;
+    let dragOffset: Point = { x: 0, y: 0 };
     let lastPointerX = 0;
     let lastPointerY = 0;
     let isDisposed = false;
     let isInitialized = false;
 
     const centerWorld = () => {
-      const { minX, minY, maxX, maxY } = demoCityProject.city.world.bounds;
+      const { minX, minY, maxX, maxY } = projectRef.current.city.world.bounds;
       const width = maxX - minX;
       const height = maxY - minY;
       zoom = Math.min(
@@ -197,6 +311,7 @@ export const MapCanvas = () => {
         (host.clientWidth - width * zoom) / 2 - minX * zoom,
         (host.clientHeight - height * zoom) / 2 + minY * zoom,
       );
+      refreshIndicator();
     };
     const resize = () =>
       application.renderer.resize(host.clientWidth, host.clientHeight);
@@ -213,25 +328,146 @@ export const MapCanvas = () => {
       );
       world.scale.set(zoom, -zoom);
       world.position.set(pointerX - worldX * zoom, pointerY + worldY * zoom);
+      refreshIndicator();
+    };
+    const updateProjectObject = (
+      id: string,
+      updater: (object: MapObject) => void,
+    ) => {
+      const nextProject = structuredClone(projectRef.current);
+      const mapObject = nextProject.city.objects.find(
+        object => object.id === id,
+      );
+      if (!mapObject) return;
+      updater(mapObject);
+      projectChangeRef.current(nextProject);
+    };
+    const updateSelection = (mapObjectId: string | null) => {
+      selectedMapObjectIdRef.current = mapObjectId;
+      setSelectedMapObjectId(mapObjectId);
+      setInteractionMode('move');
+      if (sceneRef.current)
+        drawSelection(
+          sceneRef.current.selection,
+          selectedMapObjectIdRef.current,
+          projectRef.current,
+        );
+      const mapObject = projectRef.current.city.objects.find(
+        object => object.id === mapObjectId,
+      );
+      if (mapObject) {
+        const position = world.toGlobal(mapObject.transform.position);
+        setIndicatorPosition({ x: position.x, y: position.y });
+      }
+    };
+    const refreshIndicator = () => {
+      const mapObject = projectRef.current.city.objects.find(
+        object => object.id === selectedMapObjectIdRef.current,
+      );
+      if (!mapObject) return;
+      const position = world.toGlobal(mapObject.transform.position);
+      setIndicatorPosition({ x: position.x, y: position.y });
+    };
+    const getWorldPointer = (event: PointerEvent): Point => {
+      const bounds = application.canvas.getBoundingClientRect();
+      return world.toLocal({
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      });
     };
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== 1) return;
-      isPanning = true;
-      lastPointerX = event.clientX;
-      lastPointerY = event.clientY;
+      if (event.button === 1) {
+        isPanning = true;
+        lastPointerX = event.clientX;
+        lastPointerY = event.clientY;
+        application.canvas.setPointerCapture(event.pointerId);
+        application.canvas.style.cursor = 'grabbing';
+        return;
+      }
+      if (event.button !== 0 || !dragObjectId) return;
       application.canvas.setPointerCapture(event.pointerId);
-      application.canvas.style.cursor = 'grabbing';
     };
     const handlePointerMove = (event: PointerEvent) => {
-      if (!isPanning) return;
-      world.position.x += event.clientX - lastPointerX;
-      world.position.y += event.clientY - lastPointerY;
-      lastPointerX = event.clientX;
-      lastPointerY = event.clientY;
+      if (isPanning) {
+        world.position.x += event.clientX - lastPointerX;
+        world.position.y += event.clientY - lastPointerY;
+        lastPointerX = event.clientX;
+        lastPointerY = event.clientY;
+        refreshIndicator();
+        return;
+      }
+      if (!isPointerDown || !dragObjectId || !sceneRef.current) return;
+      const bounds = application.canvas.getBoundingClientRect();
+      const pointerX = event.clientX - bounds.left;
+      const pointerY = event.clientY - bounds.top;
+      if (!isDragging) {
+        if (Math.hypot(pointerX - pointerDownX, pointerY - pointerDownY) < 3)
+          return;
+        isDragging = true;
+      }
+      const mapObject = projectRef.current.city.objects.find(
+        object => object.id === dragObjectId,
+      );
+      if (!mapObject) return;
+      const pointer = getWorldPointer(event);
+      if (dragMode === 'move') {
+        const nextPosition = {
+          x: pointer.x + dragOffset.x,
+          y: pointer.y + dragOffset.y,
+        };
+        updateProjectObject(dragObjectId, object => {
+          object.transform.position = nextPosition;
+        });
+        const screenPosition = world.toGlobal(nextPosition);
+        setIndicatorPosition({ x: screenPosition.x, y: screenPosition.y });
+      } else {
+        const dx = pointer.x - mapObject.transform.position.x;
+        const dy = pointer.y - mapObject.transform.position.y;
+        const rotation = -(Math.atan2(dy, dx) * 180) / Math.PI;
+        updateProjectObject(dragObjectId, object => {
+          object.transform.rotation = rotation;
+        });
+      }
     };
-    const stopPanning = () => {
-      isPanning = false;
-      application.canvas.style.cursor = 'grab';
+    const stopPointerInteraction = (event?: PointerEvent) => {
+      if (event?.button === 1 || isPanning) {
+        isPanning = false;
+        application.canvas.style.cursor = 'grab';
+      }
+      if (isPointerDown && dragObjectId && !isDragging && !didSelectObject) {
+        dragMode = dragMode === 'move' ? 'rotate' : 'move';
+        setInteractionMode(dragMode);
+        application.canvas.style.cursor =
+          dragMode === 'rotate' ? 'crosshair' : 'grab';
+      }
+      if (isPointerDown) {
+        isPointerDown = false;
+        isDragging = false;
+        dragObjectId = null;
+        dragOffset = { x: 0, y: 0 };
+        didSelectObject = false;
+        application.canvas.style.cursor = 'grab';
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.key === 'Delete' || event.key === 'Backspace') &&
+        selectedMapObjectIdRef.current
+      ) {
+        const deletedId = selectedMapObjectIdRef.current;
+        const nextProject = structuredClone(projectRef.current);
+        nextProject.city.objects = nextProject.city.objects.filter(
+          object => object.id !== deletedId,
+        );
+        updateSelection(null);
+        projectChangeRef.current(nextProject);
+      }
+      if (event.key.toLowerCase() === 'r' && selectedMapObjectIdRef.current) {
+        dragMode = dragMode === 'move' ? 'rotate' : 'move';
+        setInteractionMode(dragMode);
+        application.canvas.style.cursor =
+          dragMode === 'rotate' ? 'crosshair' : 'grab';
+      }
     };
     const initialize = async () => {
       await application.init({ backgroundAlpha: 0, resizeTo: host });
@@ -243,16 +479,79 @@ export const MapCanvas = () => {
       host.appendChild(application.canvas);
       application.canvas.className = 'map-canvas';
       application.canvas.style.cursor = 'grab';
-      drawProject(demoCityProject, world);
+      sceneRef.current = drawProject(projectRef.current, world);
       application.stage.addChild(world);
+      world.eventMode = 'static';
+      world.hitArea = new Rectangle(
+        projectRef.current.city.world.bounds.minX,
+        projectRef.current.city.world.bounds.minY,
+        projectRef.current.city.world.bounds.maxX -
+          projectRef.current.city.world.bounds.minX,
+        projectRef.current.city.world.bounds.maxY -
+          projectRef.current.city.world.bounds.minY,
+      );
+      sceneRef.current.objects.eventMode = 'static';
+      sceneRef.current.objects.on(
+        'pointerdown',
+        (event: FederatedPointerEvent) => {
+          if (event.button !== 0) return;
+          const objectEntry = [
+            ...sceneRef.current!.objectGraphics.entries(),
+          ].find(([, graphic]) => graphic === event.target);
+          if (!objectEntry) return;
+          event.stopPropagation();
+          const [id] = objectEntry;
+          dragObjectId = id;
+          isPointerDown = true;
+          isDragging = false;
+          didSelectObject = selectedMapObjectIdRef.current !== id;
+          pointerDownX = event.global.x;
+          pointerDownY = event.global.y;
+          application.canvas.setPointerCapture(event.pointerId);
+          const mapObject = projectRef.current.city.objects.find(
+            object => object.id === id,
+          );
+          if (mapObject) {
+            const pointer = world.toLocal(event.global);
+            dragOffset = {
+              x: mapObject.transform.position.x - pointer.x,
+              y: mapObject.transform.position.y - pointer.y,
+            };
+          }
+          if (didSelectObject) {
+            dragMode = 'move';
+            setInteractionMode('move');
+            updateSelection(id);
+          }
+          application.canvas.style.cursor =
+            dragMode === 'rotate' ? 'crosshair' : 'grab';
+        },
+      );
+      sceneRef.current.objects.on(
+        'pointertap',
+        (event: FederatedPointerEvent) => {
+          event.stopPropagation();
+        },
+      );
+      world.on('pointertap', (event: FederatedPointerEvent) => {
+        if (event.button !== 0 || isDragging) return;
+        const clickedObject = [
+          ...sceneRef.current!.objectGraphics.values(),
+        ].some(graphic => graphic === event.target);
+        if (!clickedObject) updateSelection(null);
+      });
       centerWorld();
       application.canvas.addEventListener('wheel', handleWheel, {
         passive: false,
       });
       application.canvas.addEventListener('pointerdown', handlePointerDown);
       application.canvas.addEventListener('pointermove', handlePointerMove);
-      application.canvas.addEventListener('pointerup', stopPanning);
-      application.canvas.addEventListener('pointercancel', stopPanning);
+      application.canvas.addEventListener('pointerup', stopPointerInteraction);
+      application.canvas.addEventListener(
+        'pointercancel',
+        stopPointerInteraction,
+      );
+      window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('resize', resize);
     };
     void initialize();
@@ -263,15 +562,76 @@ export const MapCanvas = () => {
       application.canvas.removeEventListener('wheel', handleWheel);
       application.canvas.removeEventListener('pointerdown', handlePointerDown);
       application.canvas.removeEventListener('pointermove', handlePointerMove);
-      application.canvas.removeEventListener('pointerup', stopPanning);
-      application.canvas.removeEventListener('pointercancel', stopPanning);
+      application.canvas.removeEventListener(
+        'pointerup',
+        stopPointerInteraction,
+      );
+      application.canvas.removeEventListener(
+        'pointercancel',
+        stopPointerInteraction,
+      );
+      window.removeEventListener('keydown', handleKeyDown);
       application.destroy(true, {
         children: true,
         texture: true,
         textureSource: true,
       });
+      sceneRef.current = null;
+      worldRef.current = null;
     };
   }, []);
 
-  return <div ref={hostRef} className="h-full w-full" />;
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const currentIds = new Set(project.city.objects.map(object => object.id));
+    for (const [id, graphic] of scene.objectGraphics) {
+      if (currentIds.has(id)) continue;
+      scene.objects.removeChild(graphic);
+      graphic.destroy();
+      scene.objectGraphics.delete(id);
+    }
+    for (const mapObject of project.city.objects) {
+      let graphic = scene.objectGraphics.get(mapObject.id);
+      if (!graphic) {
+        graphic = createMapObjectGraphic(mapObject);
+        scene.objectGraphics.set(mapObject.id, graphic);
+        scene.objects.addChild(graphic);
+      }
+      graphic.position.set(
+        mapObject.transform.position.x,
+        mapObject.transform.position.y,
+      );
+      graphic.rotation = (-mapObject.transform.rotation * Math.PI) / 180;
+    }
+    drawSelection(scene.selection, selectedMapObjectIdRef.current, project);
+    const selectedObject = project.city.objects.find(
+      object => object.id === selectedMapObjectIdRef.current,
+    );
+    if (selectedObject && worldRef.current) {
+      const position = worldRef.current.toGlobal(
+        selectedObject.transform.position,
+      );
+      setIndicatorPosition({ x: position.x, y: position.y });
+    }
+  }, [project]);
+
+  const IndicatorIcon =
+    interactionMode === 'rotate' ? ArrowClockwiseIcon : ArrowsOutCardinalIcon;
+
+  return (
+    <div ref={hostRef} className="relative h-full w-full">
+      {selectedMapObjectId && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-full border border-sky-300 bg-slate-900/90 p-1 text-sky-300 shadow-lg"
+          style={{ left: indicatorPosition.x, top: indicatorPosition.y - 16 }}
+          aria-label={
+            interactionMode === 'rotate' ? 'Rotationsmodus' : 'Verschiebemodus'
+          }
+        >
+          <IndicatorIcon size={20} weight="bold" />
+        </div>
+      )}
+    </div>
+  );
 };
